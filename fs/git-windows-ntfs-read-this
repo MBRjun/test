@@ -1,0 +1,3 @@
+checkout: add --force
+commit: use git gui to stage changes, cli to commit
+
