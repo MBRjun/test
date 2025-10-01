@@ -1,0 +1,73 @@
+#!/bin/bash
+# Author: MBRjun
+# kira.libmbr.com
+# v0.1.0 Beta
+
+HOST=${1:-kira.libmbr.com}
+MIN=1280
+MAX=9000
+BAR_WIDTH=30
+
+WHITE="\033[1;37m"
+GRAY="\033[1;30m"
+RED="\033[1;31m"
+RESET="\033[0m"
+
+echo "PMTUD tool v0.1.0, testing $HOST"
+
+function detect_mtu() {
+    local IP_VERSION=$1
+    local MIN=$2
+    local MAX=$3
+    local HOST=$4
+
+    local RESULT=$MIN
+    local STEP=0
+    local TOTAL_STEPS=$(echo "l($MAX-$MIN+1)/l(2)" | bc -l | awk '{printf("%d", ($1 == int($1) ? $1 : int($1)+1))}')
+
+    # TEST MTU 1
+    if [ "$IP_VERSION" -eq 6 ]; then
+        ping -6 -c 1 -M do -s $MIN $HOST >/dev/null 2>&1
+    else
+        ping -4 -c 1 -M do -s $MIN $HOST >/dev/null 2>&1
+    fi
+
+    if [ $? -ne 0 ]; then
+        echo -e "${RED}IPv$1 MTU: FAIL ██████████████████████████████ 100%${RESET}"
+        return 1
+    fi
+
+    while [ $MIN -le $MAX ]; do
+        local MID=$(( (MIN + MAX) / 2 ))
+        STEP=$(( STEP + 1 ))
+        local PERCENT=$(( STEP * 100 / TOTAL_STEPS ))
+        local FILLED=$(( PERCENT * BAR_WIDTH / 100 ))
+        local EMPTY=$(( BAR_WIDTH - FILLED ))
+
+        # PROGRESS BAR
+        local BAR="${WHITE}$(printf "%0.s█" $(seq 1 $FILLED))${GRAY}$(printf "%0.s█" $(seq 1 $EMPTY))${RESET}"
+        echo -ne "IPv$1 MTU: $MID ${BAR} ${PERCENT}%\r"
+
+        if [ "$IP_VERSION" -eq 6 ]; then
+            ping -6 -c 1 -M do -s $MID $HOST >/dev/null 2>&1
+        else
+            ping -4 -c 1 -M do -s $MID $HOST >/dev/null 2>&1
+        fi
+
+        if [ $? -eq 0 ]; then
+            RESULT=$MID
+            MIN=$(( MID + 1 ))
+        else
+            MAX=$(( MID - 1 ))
+        fi
+    done
+
+    local MTU=$(( RESULT + 28 ))
+    if [ "$IP_VERSION" -eq 6 ]; then
+        MTU=$(( RESULT + 48 ))
+    fi
+    echo -e "IPv$1 MTU: $MTU ${WHITE}██████████████████████████████${RESET} 100% "
+}
+
+detect_mtu 6 $MIN $MAX $HOST
+detect_mtu 4 $MIN $MAX $HOST
